@@ -25,6 +25,11 @@ def main():
         for i in dataBuffer:
             data.append(i)
 
+        #Removes the ID attribute
+        firstRow.pop(0)
+        for d in data:
+            d.pop(0)
+
         atributos = {}  # for each title associate a index dict(str,int): {'title1':0, 'title2':1, 'title3':2, ...}
 
         for i in range(len(firstRow)):
