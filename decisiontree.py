@@ -1,94 +1,85 @@
 import math
-import numpy as np
+from collections import Counter
 
-class Node:
-    def __init__(self):
-        self.children = []
-        self.value = ""
-        self.isLeaf = False
-        self.pred = ""
+def calculate_entropy(data):
+    label_counts = Counter(data)
+    entropy = 0.0
+    total_examples = len(data)
 
+    for label in label_counts:
+        probability = label_counts[label] / total_examples
+        entropy -= probability * math.log2(probability)
 
-def entropy(examples, classX):
-    pos = 0.0
-    neg = 0.0
-    for _, row in examples.iterrows():
-        if row[classX] == "Yes" or row[classX] == "yes":
-            pos += 1
+    return entropy
+
+def select_best_attribute(examples, attributes, target_attribute):
+    target_index = attributes[target_attribute]
+    base_entropy = calculate_entropy([example[target_index] for example in examples])
+    best_info_gain = 0.0
+    best_attribute = None
+
+    for attribute, index in attributes.items():
+        if attribute != target_attribute:
+            attribute_values = set([example[index] for example in examples])
+            new_entropy = 0.0
+
+            for value in attribute_values:
+                subset = [example for example in examples if example[index] == value]
+                subset_labels = [example[target_index] for example in subset]
+                probability = len(subset) / len(examples)
+                new_entropy += probability * calculate_entropy(subset_labels)
+
+            info_gain = base_entropy - new_entropy
+
+            if info_gain > best_info_gain:
+                best_info_gain = info_gain
+                best_attribute = attribute
+
+    return best_attribute
+
+def ID3(examples, attributes, target_attribute):
+    target_index = attributes[target_attribute]
+    class_labels = [example[target_index] for example in examples]
+
+    # If all examples have the same class label, return the label
+    if len(set(class_labels)) == 1:
+        return class_labels[0]
+
+    # If there are no more attributes to split on, return the majority class label
+    if len(attributes) == 1:
+        majority_label = Counter(class_labels).most_common(1)[0][0]
+        return majority_label
+
+    # Select the best attribute to split on
+    best_attribute = select_best_attribute(examples, attributes, target_attribute)
+
+    # Create a new decision tree with the best attribute as the root
+    tree = {best_attribute: {}}
+
+    # Remove the best attribute from the set of attributes
+    remaining_attributes = attributes.copy()
+    remaining_attributes.pop(best_attribute)
+
+    # Split the examples based on the best attribute
+    attribute_index = attributes[best_attribute]
+    attribute_values = set([example[attribute_index] for example in examples])
+
+    for value in attribute_values:
+        subset = [example for example in examples if example[attribute_index] == value]
+
+        if len(subset) == 0:
+            majority_label = Counter(class_labels).most_common(1)[0][0]
+            tree[best_attribute][value] = majority_label
         else:
-            neg += 1
-    if pos == 0.0 or neg == 0.0:
-        return 0.0
+            subtree = ID3(subset, remaining_attributes, target_attribute)
+            tree[best_attribute][value] = subtree
+
+    return tree
+
+def print_decision_tree(tree, indent=''):
+    if isinstance(tree, dict):
+        for attribute, subtree in tree.items():
+            print(indent + attribute + ':')
+            print_decision_tree(subtree, indent + '  ')
     else:
-        p = pos / (pos + neg)
-        n = neg / (pos + neg)
-        return -(p * math.log(p, 2) + n * math.log(n, 2))
-    
-def info_gain(examples, attr, classX):
-    uniq = np.unique(examples[attr].astype(str))
-    #print ("\n",uniq)
-    gain = entropy(examples, classX)
-    #print ("\n",gain)
-
-    for u in uniq:
-        subdata = examples[examples[attr] == u]
-        #print ("\n",subdata)
-        sub_e = entropy(subdata, classX)
-        gain -= (float(len(subdata)) / float(len(examples))) * sub_e
-        #print ("\n",gain)
-    return gain
-
-def ID3(examples, attrs, classX):
-    root = Node()
-
-    max_gain = 0
-    max_feat = ""
-    for feature in attrs:
-        #print ("\n",examples)
-        gain = info_gain(examples, feature, classX)
-        if gain > max_gain:
-            max_gain = gain
-            max_feat = feature
-    root.value = max_feat
-    #print ("\nMax feature attr",max_feat)
-    uniq = np.unique(examples[max_feat].astype(str))
-    #print ("\n",uniq)
-    for u in uniq:
-        #print ("\n",u)
-        subdata = examples[examples[max_feat].astype(str) == u]
-        #print ("\n",subdata)
-        if entropy(subdata, classX) == 0.0:
-            newNode = Node()
-            newNode.isLeaf = True
-            newNode.value = u
-            newNode.pred = np.unique(subdata[classX])
-            root.children.append(newNode)
-        else:
-            dummyNode = Node()
-            dummyNode.value = u
-            new_attrs = attrs.copy()
-            new_attrs.remove(max_feat)
-            child = ID3(subdata, new_attrs, classX)
-            dummyNode.children.append(child)
-            root.children.append(dummyNode)
-
-    return root
-
-def printTree(root: Node, depth=0):
-    for i in range(depth):
-        print("\t", end="")
-    print(root.value, end="")
-    if root.isLeaf:
-        print(" -> ", root.pred)
-    print()
-    for child in root.children:
-        printTree(child, depth + 1)
-
-def classify(root: Node, new):
-    for child in root.children:
-        if child.value == new[root.value]:
-            if child.isLeaf:
-                print ("Predicted Label for new example", new," is:", child.pred)
-                exit
-            else:
-                classify (child.children[0], new)
+        print(indent + 'Class: ' + str(tree))
