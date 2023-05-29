@@ -68,14 +68,16 @@ def ID3(examples, attributes, target_attribute):
     target_index = attributes[target_attribute]
     class_labels = [example[target_index] for example in examples]
 
-    # If all examples have the same class label, return the label
+    # If all examples have the same class label, return the label and count
     if len(set(class_labels)) == 1:
-        return class_labels[0]
+        label_count = Counter(class_labels)
+        return class_labels[0], label_count
 
-    # If there are no more attributes to split on, return the majority class label
+    # If there are no more attributes to split on, return the majority class label and count
     if len(attributes) == 1:
         majority_label = Counter(class_labels).most_common(1)[0][0]
-        return majority_label
+        majority_label_count = Counter(class_labels)
+        return majority_label, majority_label_count
 
     # Select the best attribute to split on
     best_attribute = select_best_attribute(examples, attributes, target_attribute)
@@ -86,9 +88,9 @@ def ID3(examples, attributes, target_attribute):
     if isinstance(best_attribute, tuple):  # Numerical attribute
         attribute, threshold = best_attribute
         tree[best_attribute]['<= ' + str(threshold)] = ID3([example for example in examples if float(example[attributes[attribute]]) <= threshold],
-                                                           attributes, target_attribute)
+                                                     attributes, target_attribute)
         tree[best_attribute]['> ' + str(threshold)] = ID3([example for example in examples if float(example[attributes[attribute]]) > threshold],
-                                                          attributes, target_attribute)
+                                                    attributes, target_attribute)
     else:  # Categorical attribute
         remaining_attributes = attributes.copy()
         remaining_attributes.pop(best_attribute)
@@ -102,10 +104,16 @@ def ID3(examples, attributes, target_attribute):
 
     return tree
 
-def print_decision_tree(tree, indent=''):
-    if isinstance(tree, dict):
-        for attribute, subtree in tree.items():
-            print(f"{indent}{attribute}:")
-            print_decision_tree(subtree, indent + "\t")
-    else:
-        print(f"{indent}{tree}")
+def print_decision_tree(tree, attribute_indentation=''):
+    for attribute, subtree in tree.items():
+        if isinstance(subtree, dict):
+            print(attribute_indentation + str(attribute) + ':')
+            print_decision_tree(subtree, attribute_indentation + '\t')
+        else:
+            print(attribute_indentation + str(attribute) + ' (' + str(subtree[0]) + ')')
+
+            # Print target attribute value counts
+            if isinstance(subtree[1], dict):
+                target_counts = subtree[1]
+                for value, count in target_counts.items():
+                    print(attribute_indentation + '\t' + str(value) + ': ' + str(count))
